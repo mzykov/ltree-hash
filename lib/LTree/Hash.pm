@@ -3,63 +3,22 @@ package LTree::Hash;
 use 5.014002;
 use strict;
 use warnings;
-use Carp;
-
-require Exporter;
-use AutoLoader;
-
-our @ISA = qw(Exporter);
-
-# Items to export into callers namespace by default. Note: do not export
-# names by default without a very good reason. Use EXPORT_OK instead.
-# Do not simply export all your public functions/methods/constants.
-
-# This allows declaration	use LTree::Hash ':all';
-# If you do not need this, moving things directly into @EXPORT or @EXPORT_OK
-# will save memory.
-our %EXPORT_TAGS = ( 'all' => [ qw(
-	ltree_hash ltree_array
-) ] );
-
-our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
-
-our @EXPORT = qw(
-	
-);
+use utf8;
 
 our $VERSION = '0.01';
 
-sub AUTOLOAD {
-    # This AUTOLOAD is used to 'autoload' constants from the constant()
-    # XS function.
+require Exporter;
 
-    my $constname;
-    our $AUTOLOAD;
-    ($constname = $AUTOLOAD) =~ s/.*:://;
-    croak "&LTree::Hash::constant not defined" if $constname eq 'constant';
-    my ($error, $val) = constant($constname);
-    if ($error) { croak $error; }
-    {
-	no strict 'refs';
-	# Fixed between 5.005_53 and 5.005_61
-#XXX	if ($] >= 5.00561) {
-#XXX	    *$AUTOLOAD = sub () { $val };
-#XXX	}
-#XXX	else {
-	    *$AUTOLOAD = sub { $val };
-#XXX	}
-    }
-    goto &$AUTOLOAD;
-}
+our @ISA = qw(Exporter);
+
+our %EXPORT_TAGS = ('all' => ['ltree_hash']);
+our @EXPORT_OK   = (@{$EXPORT_TAGS{'all'}});
 
 require XSLoader;
 XSLoader::load('LTree::Hash', $VERSION);
 
-# Preloaded methods go here.
-
-# Autoload methods go after =cut, and are processed by the autosplit program.
-
 1;
+
 __END__
 
 =head1 NAME
@@ -68,8 +27,13 @@ LTree::Hash - fast parsing ltree-like hash
 
 =head1 SYNOPSIS
 
+Transform plain HashRef whose keys are look like LTree 
+to deep HashRef. Feet arise from https://www.postgresql.org/docs/current/static/ltree.html
+
+=head1 DESCRIPTION
+
   use LTree::Hash qw(ltree_hash);
-  use Data::Dumper qw(Dumper);
+  use Data::Dumper qw(Dumper); # for debug only
   
   my $hashref = {
        'Top.Science.Astronomy.Astrophysics'            => '',
@@ -113,9 +77,7 @@ LTree::Hash - fast parsing ltree-like hash
     }
   };
   
-=head1 DESCRIPTION
 
-TODO.
 
 =head1 EXPORT
 
@@ -123,7 +85,7 @@ None by default.
 
 =head1 AUTHOR
 
-Zykov Mikhail, E<lt>miha@pglite.ruE<gt>
+Zykov Mikhail, E<lt>zmsmihail@yandex.ruE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
