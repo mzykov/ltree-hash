@@ -1,0 +1,11 @@
+TODO
+Changes
+Hash.xs
+Makefile.PL
+MANIFEST
+ppport.h
+README.md
+t/LTree-Hash.t
+t/memory-leaks.t
+t/hash-ok.t
+lib/LTree/Hash.pm
