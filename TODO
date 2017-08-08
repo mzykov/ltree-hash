@@ -1,2 +1,2 @@
-1. Протестировать: если в хэше встречается GLOB.
-2. Проверить: нет ли утечек памяти если в XS вызывается croak
+1. Test GLOB's
+2. Check memory leaks, after croak in XS-code
