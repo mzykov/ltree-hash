@@ -1,5 +1,8 @@
 Revision history for Perl extension LTree::Hash.
 
+1.0   Mon Sep 11 20:31:25 2017
+	- fix it to be stable version;
+
 0.01  Thu Feb 12 11:23:31 2015
 	- original version; created by h2xs 1.23 with options
 		-n LTree::Hash -v 0.01

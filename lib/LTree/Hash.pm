@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use utf8;
 
-our $VERSION = '0.01';
+our $VERSION = '1.0';
 
 require Exporter;
 

@@ -1,5 +1,5 @@
-LTree-Hash version 0.01
-=======================
+LTree-Hash version 1.0 (stable)
+===============================
 
 Transform plain HashRef whose keys are look like LTree 
 to deep HashRef. Feet arise from https://www.postgresql.org/docs/current/static/ltree.html
