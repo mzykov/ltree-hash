@@ -13,13 +13,16 @@ init_keyhash(HV **root, const char *key, STRLEN len) {
   newhash = (HV *)sv_2mortal((SV *)newHV());
   
   if (newhash == NULL) {
-    croak("Cannot create hash\n");
+    warn("init_keyhash: cannot create new hash\n");
+    return NULL;
   }
   
   ok = hv_store(*root, key, len, (SV *)newRV((SV *)newhash), 0);
   
-  if (*ok == NULL) {
-    croak("init_keyhash: cannot store key\n");
+  if (ok != NULL && *ok == NULL) {
+    warn("init_keyhash: cannot store key\n");
+    hv_undef(newhash);
+    return NULL;
   }
   
   *root = newhash;
@@ -27,7 +30,7 @@ init_keyhash(HV **root, const char *key, STRLEN len) {
   return newhash;
 }
 
-void
+bool
 insert_keyval(HV *hash, char *key, SV *val) {
   SV     **ok = NULL;
   STRLEN len;
@@ -36,12 +39,16 @@ insert_keyval(HV *hash, char *key, SV *val) {
   len = strlen((const char *)key);
   ok = hv_store(hash, (const char *)key, len, val, 0);
   
-  if (*ok == NULL) {
-    croak("insert_keyval: cannot store key\n");
+  if (ok != NULL && *ok == NULL) {
+    warn("insert_keyval: cannot store value for key\n");
+    SvREFCNT_dec(val);
+    return FALSE;
   }
+  
+  return TRUE;
 }
 
-void
+bool
 process_entry(char *key, SV *val, HV *hash) {
   HV *root_iter;
   SV **elem = NULL;
@@ -56,6 +63,8 @@ process_entry(char *key, SV *val, HV *hash) {
   root_iter = hash;
   token = strtok(key, delim);
   
+  bool error = FALSE;
+  
   while (token != NULL) {
     node = leaf;
     leaf = token;
@@ -66,25 +75,41 @@ process_entry(char *key, SV *val, HV *hash) {
       if (hv_exists(root_iter, (const char *)node, len)) {
         elem = hv_fetch(root_iter, (const char *)node, len, 0);
         
-        if (*elem != NULL) {
+        if (elem != NULL && *elem != NULL) {
           /* if hash reference - make chroot */
           if (SvOK(*elem) && SvROK(*elem) && SvTYPE(SvRV(*elem)) == SVt_PVHV) {
             root_iter = (HV *)SvRV(*elem); /* change root */
-          } else { /* other data */
-            SvREFCNT_dec(*elem);
-            init_keyhash(&root_iter, (const char *)node, len);
           }
-        } else {
-          croak("process_entry: hash element is null\n");
+          else { /* other data */
+            if (init_keyhash(&root_iter, (const char *)node, len) != NULL) {
+              SvREFCNT_dec(*elem); /* remove old data */
+            }
+            else {
+              error = TRUE;
+              break;
+            }
+          }
+        }
+        else {
+          warn("process_entry: hash element is null\n");
+          error = TRUE;
+          break;
         }
       } else { 
         /* There is no such key, 
            so initialize new hash */
-        init_keyhash(&root_iter, (const char *)node, len);
+        if (init_keyhash(&root_iter, (const char *)node, len) == NULL) {
+          error = TRUE;
+          break;
+        }
       }
     }
     
     token = strtok(NULL, delim);
+  }
+  
+  if (error) {
+    return FALSE;
   }
   
   /* check leaf-key if it is a hash,
@@ -94,22 +119,30 @@ process_entry(char *key, SV *val, HV *hash) {
   if (hv_exists(root_iter, (const char *)leaf, len)) {
     elem = hv_fetch(root_iter, (const char *)leaf, len, 0);
     
-    if (*elem == NULL) {
-      croak("process_entry: hash element is null\n");
+    if (elem != NULL && *elem != NULL) {
+      if (!(SvOK(*elem)  &&                 /* is defined */
+            SvROK(*elem) &&                 /* is reference */
+            SvTYPE(SvRV(*elem)) == SVt_PVHV /* is a HashRef */
+      )) {
+        /* rewrite value if it is not a hash reference */
+        if (!insert_keyval(root_iter, leaf, val)) {
+          return FALSE;
+        }
+      }
     }
-    
-    if (!(SvOK(*elem)  &&                 /* is defined */
-          SvROK(*elem) &&                 /* is reference */
-          SvTYPE(SvRV(*elem)) == SVt_PVHV /* is a HashRef */
-    )) {
-      /* rewrite value if it is not a hash reference */
-      insert_keyval(root_iter, leaf, val);
+    else {
+      warn("process_entry: hash element is null\n");
+      return FALSE;
     }
   } else {
     /* there is no leaf-key in root_iter hash,
        then push new key (leaf) with value (val) */
-    insert_keyval(root_iter, leaf, val);
+    if (!insert_keyval(root_iter, leaf, val)) {
+      return FALSE;
+    }
   }
+  
+  return TRUE;
 }
 
 MODULE = LTree::Hash		PACKAGE = LTree::Hash
@@ -124,6 +157,7 @@ ltree_hash(hashref)
 		HE *source_entry = NULL;
 		SV *source_val = NULL;
 		I32 keylen;
+		bool error = FALSE;
 		char *source_key = NULL;
 	CODE:
 		if (SvOK(hashref) && SvROK(hashref) && SvTYPE(SvRV(hashref)) == SVt_PVHV) {
@@ -138,17 +172,32 @@ ltree_hash(hashref)
 		      source_val = hv_iterval(source_hash, source_entry);
 		      
 		      if (source_key == NULL) {
-		        croak("ltree_hash: hash key is null\n");
+		        warn("ltree_hash: hash key is null\n");
+		        error = TRUE;
+		        break;
 		      }
 		      
-		      process_entry(source_key, source_val, root_hash);
+		      if (!process_entry(source_key, source_val, root_hash)) {
+		        error = TRUE;
+		        break;
+		      }
 		    }
 		    
-		    RETVAL = newRV_inc(sv_2mortal((SV*)root_hash));
-		  } else {
-		    croak("ltree_hash: input hash is broken\n");
+		    if (!error) {
+		      RETVAL = newRV_inc(sv_2mortal((SV*)root_hash));
+		    }
+		    else {
+		      hv_undef(root_hash);
+		      RETVAL = &PL_sv_undef;
+		    }
 		  }
-		} else {
+		  else {
+		    warn("ltree_hash: input hash is broken\n");
+		    RETVAL = &PL_sv_undef;
+		  }
+		}
+		else {
+		  warn("ltree_hash: provide a valid HashRef\n");
 		  RETVAL = &PL_sv_undef;
 		}
 	OUTPUT:

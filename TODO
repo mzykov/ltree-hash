@@ -1,2 +1,2 @@
 1. Test GLOB's
-2. Check memory leaks, after croak in XS-code
+2. Check memory leaks, after errors
